@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from .position import PositionEmbeddingSine
 from .geometry import coords_grid, generate_window_grid, normalize_coords
 import numpy as np
-import cv2
+# import cv2
 
 
 def show(foo):
