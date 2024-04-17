@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sgm-vfi"
+version = "1.0.0"
+description = "Sparse Global Matching for Video Frame Interpolation with Large Motion"
+requires-python = ">=3.8"
+dependencies = ["scikit-image", "numpy", "tqdm", "timm"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

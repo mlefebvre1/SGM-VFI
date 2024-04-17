@@ -7,10 +7,9 @@ import argparse
 from imageio import mimsave
 
 '''==========import from our code=========='''
-sys.path.append('.')
-import config as cfg
-from Trainer_x4k import Model
-from benchmark.utils.padder import InputPadder
+import .config as cfg
+from .Trainer_x4k import Model
+from .benchmark.utils.padder import InputPadder
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', default='ours_small', type=str)

@@ -9,15 +9,15 @@ import random
 import argparse
 import json
 
-from Trainer_base import Model
-from dataset import VimeoDataset
+from .Trainer_base import Model
+from .dataset import VimeoDataset
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data.distributed import DistributedSampler
-from config_base import *
+from .config_base import *
 
 device = torch.device("cuda")
-exp = os.path.abspath('.').split('/')[-1]
+exp = os.path.abspath(".").split("/")[-1]
 
 
 def get_learning_rate(step):
@@ -25,7 +25,10 @@ def get_learning_rate(step):
         mul = step / 2000
         return 2e-4 * mul
     else:
-        mul = np.cos((step - 2000) / (300 * args.step_per_epoch - 2000) * math.pi) * 0.5 + 0.5
+        mul = (
+            np.cos((step - 2000) / (300 * args.step_per_epoch - 2000) * math.pi) * 0.5
+            + 0.5
+        )
         return (2e-4 - 2e-5) * mul + 2e-5
 
 
@@ -35,33 +38,48 @@ def train(model, local_rank, batch_size, data_path):
     step = 0
     nr_eval = 0
     best = 0
-    dataset = VimeoDataset('train', data_path)
+    dataset = VimeoDataset("train", data_path)
     sampler = DistributedSampler(dataset) if local_rank != -1 else None
-    train_data = DataLoader(dataset, batch_size=batch_size, num_workers=8, pin_memory=True, drop_last=True,
-                            sampler=sampler)
+    train_data = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        num_workers=8,
+        pin_memory=True,
+        drop_last=True,
+        sampler=sampler,
+    )
     args.step_per_epoch = train_data.__len__()
-    dataset_val = VimeoDataset('test', data_path)
-    val_data = DataLoader(dataset_val, batch_size=batch_size, pin_memory=True, num_workers=8)
-    print('training...')
+    dataset_val = VimeoDataset("test", data_path)
+    val_data = DataLoader(
+        dataset_val, batch_size=batch_size, pin_memory=True, num_workers=8
+    )
+    print("training...")
     time_stamp = time.time()
     for epoch in range(300):
         sampler.set_epoch(epoch) if local_rank > 0 else None
         for i, imgs in enumerate(train_data):
             data_time_interval = time.time() - time_stamp
             time_stamp = time.time()
-            imgs = imgs.to(device, non_blocking=True) / 255.
+            imgs = imgs.to(device, non_blocking=True) / 255.0
             imgs, gt = imgs[:, 0:6], imgs[:, 6:]
             learning_rate = get_learning_rate(step)
             _, loss = model.update(imgs, gt, learning_rate, training=True)
             train_time_interval = time.time() - time_stamp
             time_stamp = time.time()
             if step % 200 == 1 and local_rank == 0:
-                writer.add_scalar('learning_rate', learning_rate, step)
-                writer.add_scalar('loss', loss, step)
+                writer.add_scalar("learning_rate", learning_rate, step)
+                writer.add_scalar("loss", loss, step)
             if local_rank <= 0:
-                print('epoch:{} {}/{} time:{:.2f}+{:.2f} loss:{:.4e}'.format(epoch, i, args.step_per_epoch,
-                                                                             data_time_interval, train_time_interval,
-                                                                             loss))
+                print(
+                    "epoch:{} {}/{} time:{:.2f}+{:.2f} loss:{:.4e}".format(
+                        epoch,
+                        i,
+                        args.step_per_epoch,
+                        data_time_interval,
+                        train_time_interval,
+                        loss,
+                    )
+                )
             step += 1
         nr_eval += 1
         if nr_eval % 3 == 0:
@@ -76,17 +94,22 @@ def evaluate(model, val_data, nr_eval, local_rank):
         writer_val = SummaryWriter(f'log/{MODEL_CONFIG["LOGNAME"]}/val/vis')
     psnr = []
     for _, imgs in enumerate(val_data):
-        imgs = imgs.to(device, non_blocking=True) / 255.
+        imgs = imgs.to(device, non_blocking=True) / 255.0
         imgs, gt = imgs[:, 0:6], imgs[:, 6:]
         with torch.no_grad():
             pred, _ = model.update(imgs, gt, training=False)
         for j in range(gt.shape[0]):
-            psnr.append(-10 * math.log10(((gt[j] - pred[j]) * (gt[j] - pred[j])).mean().cpu().item()))
+            psnr.append(
+                -10
+                * math.log10(
+                    ((gt[j] - pred[j]) * (gt[j] - pred[j])).mean().cpu().item()
+                )
+            )
 
     psnr = np.array(psnr).mean()
     if local_rank == 0:
         print(str(nr_eval), psnr)
-        writer_val.add_scalar('psnr', psnr, nr_eval)
+        writer_val.add_scalar("psnr", psnr, nr_eval)
         log_stats = {"epoch": nr_eval, "psnr": psnr}
         with open(f"./log/{MODEL_CONFIG['LOGNAME']}/log.txt", "a") as f:
             f.write(json.dumps(log_stats) + "\n")
@@ -95,8 +118,8 @@ def evaluate(model, val_data, nr_eval, local_rank):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--batch_size', default=8, type=int, help='batch size')
-    parser.add_argument('--data_path', type=str, help='data path of vimeo90k')
+    parser.add_argument("--batch_size", default=8, type=int, help="batch size")
+    parser.add_argument("--data_path", type=str, help="data path of vimeo90k")
     parser.add_argument("--ckpt_name", default=None, type=str, help="ckpt path")
     args = parser.parse_args()
     local_rank = int(os.environ["LOCAL_RANK"]) if "LOCAL_RANK" in os.environ else -1
